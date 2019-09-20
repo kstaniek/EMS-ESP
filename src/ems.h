@@ -114,8 +114,8 @@
 
 #define EMS_TX_TELEGRAM_QUEUE_MAX 50 // max size of Tx FIFO queue. Number of Tx records to send.
 
-//#define EMS_SYS_LOGGING_DEFAULT EMS_SYS_LOGGING_VERBOSE // turn on for debugging
-#define EMS_SYS_LOGGING_DEFAULT EMS_SYS_LOGGING_NONE
+#define EMS_SYS_LOGGING_DEFAULT EMS_SYS_LOGGING_VERBOSE // turn on for debugging
+//#define EMS_SYS_LOGGING_DEFAULT EMS_SYS_LOGGING_NONE // disabled for 182
 
 #define EMS_SYS_DEVICEMAP_LENGTH 13 // size of the 0x07 telegram data part which stores all active EMS devices
 

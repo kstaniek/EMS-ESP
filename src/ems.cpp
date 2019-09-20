@@ -579,10 +579,13 @@ void _ems_sendTelegram() {
     }
 
     // if we're preventing all outbound traffic, quit
+    // 182
+    /*
     if (ems_getTxDisabled()) {
         EMS_TxQueue.shift(); // remove from queue
         return;
     }
+    */
 
     // get the first in the queue, which is at the head
     // we don't remove from the queue yet
@@ -596,6 +599,7 @@ void _ems_sendTelegram() {
 
     // if we're in raw mode just fire and forget
     if (EMS_TxTelegram.action == EMS_TX_TELEGRAM_RAW) {
+
         EMS_TxTelegram.data[EMS_TxTelegram.length - 1] = _crcCalculator(EMS_TxTelegram.data, EMS_TxTelegram.length); // add the CRC
 
         if (EMS_Sys_Status.emsLogging != EMS_SYS_LOGGING_NONE) {
@@ -739,9 +743,12 @@ void _createValidate() {
  * dump a UART Tx or Rx buffer to console...
  */
 void ems_dumpBuffer(const char * prefix, uint8_t * telegram, uint8_t length) {
-    uint32_t    timestamp       = millis();
-    static char output_str[200] = {0};
-    static char buffer[16]      = {0};
+    uint32_t timestamp = millis();
+    char     output_str[200];
+    char     buffer[16];
+
+    if (length == 1)
+        return;
 
     /*
     // we only care about known devices
@@ -751,11 +758,12 @@ void ems_dumpBuffer(const char * prefix, uint8_t * telegram, uint8_t length) {
             ||(dev == 0x01)||(dev == 0x0b)||(dev == 0x10)))
             return;
     }
-*/
+    */
 
     strlcpy(output_str, "(", sizeof(output_str));
     strlcat(output_str, COLOR_CYAN, sizeof(output_str));
     strlcat(output_str, _smallitoa((uint8_t)((timestamp / 3600000) % 24), buffer), sizeof(output_str));
+
     strlcat(output_str, ":", sizeof(output_str));
     strlcat(output_str, _smallitoa((uint8_t)((timestamp / 60000) % 60), buffer), sizeof(output_str));
     strlcat(output_str, ":", sizeof(output_str));
@@ -774,7 +782,6 @@ void ems_dumpBuffer(const char * prefix, uint8_t * telegram, uint8_t length) {
     strlcat(output_str, _hextoa(EMS_Sys_Status.emsTxStatus, buffer), sizeof(output_str));
     strlcat(output_str, ": ", sizeof(output_str));
 
-
     // print whole buffer, don't interpret any data
     for (int i = 0; i < (length); i++) {
         strlcat(output_str, _hextoa(telegram[i], buffer), sizeof(output_str));
@@ -786,13 +793,55 @@ void ems_dumpBuffer(const char * prefix, uint8_t * telegram, uint8_t length) {
     myDebug(output_str);
 }
 
+
+// simplied version of ems_parseTelegram for issue 182
+void ems_parseTelegram(uint8_t * telegram, uint8_t length) {
+    /*
+     * Detect the EMS bus type - Buderus or Junkers - and set emsIDMask accordingly.
+     *  we wait for the first valid telegram and look at the SourceID.
+     *  If Bit 7 is set we have a Buderus, otherwise a Junkers
+     */
+    if ((EMS_Sys_Status.emsTxStatus == EMS_TX_REV_DETECT) && (length > 1)) {
+        if ((length >= 5) && (telegram[length - 1] == _crcCalculator(telegram, length))) {
+            EMS_Sys_Status.emsTxStatus   = EMS_TX_STATUS_IDLE;
+            EMS_Sys_Status.emsIDMask     = telegram[0] & 0x80;
+            EMS_Sys_Status.emsPollAck[0] = EMS_ID_ME ^ EMS_Sys_Status.emsIDMask;
+        } else
+            return; // ignore the whole telegram Rx Telegram while in DETECT mode
+    }
+
+    // check for poll, then send
+    if (length == 1) {
+        static uint32_t _last_emsPollFrequency = 0;
+
+        // check first for a Poll for us
+        if ((telegram[0] ^ 0x80 ^ EMS_Sys_Status.emsIDMask) == EMS_ID_ME) {
+            uint32_t timenow_microsecs      = micros();
+            EMS_Sys_Status.emsPollFrequency = (timenow_microsecs - _last_emsPollFrequency);
+            _last_emsPollFrequency          = timenow_microsecs;
+
+            if ((!EMS_TxQueue.isEmpty()) && (EMS_Sys_Status.emsTxStatus == EMS_TX_STATUS_IDLE)) {
+                _ems_sendTelegram();
+            }
+        }
+
+        return; // all done here
+    }
+
+    // print telegram
+    ems_dumpBuffer("ems_parseTelegram: ", telegram, length);
+
+    EMS_Sys_Status.emsRxTimestamp  = millis();
+    EMS_Sys_Status.emsBusConnected = true;
+}
+
 /**
  * Entry point triggered by an interrupt in emsuart.cpp
  * length is the number of all the telegram bytes up to and including the CRC at the end
  * Read commands are asynchronous as they're handled by the interrupt
  * When a telegram is processed we forcefully erase it from the stack to prevent overflow
  */
-void ems_parseTelegram(uint8_t * telegram, uint8_t length) {
+void ems_parseTelegram2(uint8_t * telegram, uint8_t length) {
     if (EMS_Sys_Status.emsLogging == EMS_SYS_LOGGING_JABBER) {
         ems_dumpBuffer("ems_parseTelegram: ", telegram, length);
     }
@@ -2619,9 +2668,10 @@ void ems_doReadCommand(uint16_t type, uint8_t dest, bool forceRefresh) {
  * telegram is a string of hex values
  */
 void ems_sendRawTelegram(char * telegram) {
-    if (ems_getLogging() != EMS_SYS_LOGGING_NONE) {
-        myDebug_P(PSTR("in Listen Mode. All Tx is disabled."));
-    }
+    // 182
+    //if (ems_getLogging() != EMS_SYS_LOGGING_NONE) {
+    //    myDebug_P(PSTR("in Listen Mode. All Tx is disabled."));
+    //}
 
     uint8_t count = 0;
     char *  p;

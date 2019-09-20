@@ -1211,7 +1211,9 @@ bool LoadSaveCallback(MYESP_FSACTION action, JsonObject settings) {
         EMSESP_Settings.shower_alert    = settings["shower_alert"];
         EMSESP_Settings.publish_time    = settings["publish_time"] | DEFAULT_PUBLISHTIME;
 
-        EMSESP_Settings.listen_mode = settings["listen_mode"];
+        // EMSESP_Settings.listen_mode = settings["listen_mode"]; // 182
+        /// 182 force listen mode
+        EMSESP_Settings.listen_mode = true;
         ems_setTxDisabled(EMSESP_Settings.listen_mode);
 
         EMSESP_Settings.tx_mode = settings["tx_mode"] | 1; // default to 1 (generic)
@@ -1561,6 +1563,15 @@ void TelnetCommandCallback(uint8_t wc, const char * commandLine) {
     // send raw
     if ((strcmp(first_cmd, "send") == 0) && (wc > 1)) {
         ems_sendRawTelegram((char *)&commandLine[5]);
+        ok = true;
+    }
+
+    // 182 XXX
+    if ((strcmp(first_cmd, "query") == 0) && (wc == 2)) {
+        char s[20] = {0};
+        uint16_t type_id = _readHexNumber();
+        snprintf(s, sizeof(s), "%02X %02X 02 00 20", EMS_ID_ME, (type_id | 0x80) );
+        ems_sendRawTelegram(s);
         ok = true;
     }
 
