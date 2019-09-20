@@ -1566,7 +1566,7 @@ void TelnetCommandCallback(uint8_t wc, const char * commandLine) {
         ok = true;
     }
 
-    // 182 XXX
+    // 182
     if ((strcmp(first_cmd, "query") == 0) && (wc == 2)) {
         char s[20] = {0};
         uint16_t type_id = _readHexNumber();
